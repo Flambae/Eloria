@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using Shittim.Services.Client;
 using AutoMapper;
 using BlueArchiveAPI.Services;
+using Shittim_Server.Services;
+using System.Collections.Concurrent;
 
 namespace Shittim.Services.IrcClient
 {
@@ -14,6 +16,7 @@ namespace Shittim.Services.IrcClient
         public IMapper Mapper { get; set; }
         public ExcelTableService ExcelTableService { get; set; }
         public long AccountServerId { get; set; }
+        public MailManager MailManager { get; set; }
 
         public TcpClient TcpClient { get; set; }
         public CancellationTokenSource CancellationToken { get; set; }
@@ -30,7 +33,8 @@ namespace Shittim.Services.IrcClient
             StreamWriter _writer,
             StreamReader _reader,
             long _accountServerId,
-            string _currentChannel
+            string _currentChannel,
+            MailManager _mailManager
         )
         {
             TcpClient = _client;
@@ -42,6 +46,7 @@ namespace Shittim.Services.IrcClient
             StreamReader = _reader;
             AccountServerId = _accountServerId;
             CurrentChannel = _currentChannel;
+            MailManager = _mailManager;
         }
 
         public Task SendChatMessage(string text)

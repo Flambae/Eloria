@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Schale.Data;
 using BlueArchiveAPI.Services;
 using Shittim.Services.IrcClient;
+using Shittim_Server.Services;
 
 namespace Shittim.Services.Client
 {
@@ -16,5 +17,7 @@ namespace Shittim.Services.Client
         Task SendChatMessage(string text);
         Task SendChatMessage(string text, string nickname, long pfpCharacterId, long stickerId, IrcMessageType messageType);
         Task SendEmote(long stickerId);
+
+        public MailManager MailManager { get; set; }
     }
 }

@@ -5,18 +5,20 @@ using BlueArchiveAPI.Configuration;
 using Schale.Data;
 using BlueArchiveAPI.Services;
 
+using Shittim_Server.Services;
+
 namespace Shittim.Services.IrcClient
 {
     public class IrcService : BackgroundService
     {
         private IrcServer server;
 
-        public IrcService(IDbContextFactory<SchaleDataContext> context, IMapper mapper, ExcelTableService excelTableService)
+        public IrcService(IDbContextFactory<SchaleDataContext> context, IMapper mapper, ExcelTableService excelTableService, MailManager mailManager)
         {
             server = new IrcServer(
                 IPAddress.Any,
                 Config.Instance.IrcConfiguration.IrcPort,
-                context, mapper, excelTableService
+                context, mapper, excelTableService, mailManager
             );
         }
 

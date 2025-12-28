@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using AutoMapper;
 using BlueArchiveAPI.Services;
 using Shittim.Services.IrcClient;
+using Shittim_Server.Services;
 
 namespace Shittim.Services.Client
 {
@@ -12,6 +13,7 @@ namespace Shittim.Services.Client
         public IMapper Mapper { get; set; }
         public ExcelTableService ExcelTableService { get; set; }
         public long AccountServerId { get; set; }
+        public MailManager MailManager { get; set; }
 
         public StreamWriter StreamWriter { get; set; }
 
@@ -20,7 +22,8 @@ namespace Shittim.Services.Client
             IMapper _mapper,
             ExcelTableService _excel,
             StreamWriter _writer,
-            long _accountServerId
+            long _accountServerId,
+            MailManager _mailManager
         )
         {
             Context = _ctx;
@@ -28,6 +31,7 @@ namespace Shittim.Services.Client
             ExcelTableService = _excel;
             StreamWriter = _writer;
             AccountServerId = _accountServerId;
+            MailManager = _mailManager;
         }
 
         public Task SendChatMessage(string text)

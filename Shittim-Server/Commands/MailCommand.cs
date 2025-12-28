@@ -29,20 +29,14 @@ namespace Shittim.Commands
             InitializeIndex();
             using var context = await connection.Context.CreateDbContextAsync();
             var account = context.GetAccount(connection.AccountServerId);
-            if (args == null || args.Length == 0)
-            {
-                await connection.SendChatMessage("Usage: /mail [type] [id,...] [amount]");
-                return;
-            }
 
-            var typeToken = args[0].Trim();
-            if (string.Equals(typeToken, "help", StringComparison.OrdinalIgnoreCase))
+            if (args.Length == 0 || args[0].ToLower() == "help")
             {
                 await ShowHelp();
                 return;
             }
         
-            if (string.Equals(typeToken, "clear", StringComparison.OrdinalIgnoreCase))
+            if (args[0].ToLower() == "clear")
             {
                 int affectedRows = await context.Mails.Where(x => x.AccountServerId == account.ServerId && x.ReceiptDate == null)
                     .ExecuteDeleteAsync();
@@ -54,66 +48,76 @@ namespace Shittim.Commands
                 return;
             }
 
+            // Syntax: /mail [id] [amount] OR /mail [type] [id] [amount]
+            // We try to detect if args[0] is an ID directly.
+            
+            long id = 0;
             long amount = 1;
-            long parsedAmount = 1;
-            bool hasAmount = args.Length >= 3 && long.TryParse(args[args.Length - 1], out parsedAmount);
-            if (hasAmount)
-                amount = parsedAmount;
+            ParcelType? detectedType = null;
+            bool isSimpleSyntax = long.TryParse(args[0], out id);
 
-            int idEndExclusive = hasAmount ? args.Length - 1 : args.Length;
-            var idTokens = args.Skip(1).Take(Math.Max(0, idEndExclusive - 1));
-            string idConcat = string.Concat(idTokens);
-
-            if (string.IsNullOrWhiteSpace(idConcat))
+            if (isSimpleSyntax)
             {
-                await connection.SendChatMessage("Error: Please enter the correct type and id");
-                return;
-            }
-
-            List<long> ids;
-            try
-            {
-                ids = idConcat
-                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(s => long.Parse(s.Trim()))
-                    .ToList();
-            }
-            catch (FormatException)
-            {
-                await connection.SendChatMessage("Error: Invalid id format.");
-                return;
-            }
-
-            _ = long.TryParse(TypeStr, out var type);
-            ParcelType parcelType = (ParcelType)(int)type;
-            List<ParcelInfo> parcelInfos = new();
-            foreach (var id in ids)
-            {
-                var key = new ItemKey(parcelType, id);
-                if (!_itemDict.TryGetValue(key, out var obj))
+                // Simple Syntax: /mail 1001 10
+                if (args.Length > 1) long.TryParse(args[1], out amount);
+                
+                detectedType = FindTypeById(id);
+                if (detectedType == null)
                 {
-                    await connection.SendChatMessage("Error: Please enter the correct type and id");
+                    await connection.SendChatMessage($"Error: Could not find item with ID {id}");
                     return;
                 }
-                parcelInfos.AddRange(ParcelInfo.CreateParcelInfo(parcelType, id, amount));
+            }
+            else
+            {
+                // Legacy/Explicit Syntax: /mail item 1001 10
+                if (args.Length < 2) 
+                {
+                    await ShowHelp();
+                    return;
+                }
+                
+                if (!Enum.TryParse(args[0], true, out ParcelType pType))
+                {
+                     // Try parsing number for type
+                     if (int.TryParse(args[0], out int typeInt)) pType = (ParcelType)typeInt;
+                     else 
+                     {
+                         await connection.SendChatMessage("Error: Invalid type");
+                         return;
+                     }
+                }
+                detectedType = pType;
+                long.TryParse(args[1], out id);
+                if (args.Length > 2) long.TryParse(args[2], out amount);
             }
 
-            context.Mails.Add(new()
-            {
-                AccountServerId = account.ServerId,
-                Type = MailType.System,
-                UniqueId = 1,
-                Sender = "Schale",
-                Comment = "Items sent by GM",
-                SendDate = DateTime.Now,
-                ExpireDate = DateTime.Now.AddDays(7),
-                ParcelInfos = parcelInfos,
-                RemainParcelInfos = new()
-            });
+            var parcelInfos = new List<ParcelInfo> 
+            { 
+                new ParcelInfo { Key = new ParcelKeyPair { Type = detectedType.Value, Id = id }, Amount = amount } 
+            };
 
-            await connection.SendChatMessage("Send mail successfully, please check your mailbox");
-            await connection.SendChatMessage("If the client abnormal after sending email, please use '/mail clear' to fix it.");
-            await context.SaveChangesAsync();
+            await connection.MailManager.SendSystemMail(
+                account,
+                "Schale",
+                "Items sent by GM",
+                parcelInfos,
+                DateTime.Now.AddDays(7)
+            );
+
+            await connection.SendChatMessage($"Sent {amount}x {detectedType} (ID: {id}) via mail!");
+            await connection.SendChatMessage("Please check your mailbox.");
+        }
+
+        private ParcelType? FindTypeById(long id)
+        {
+            // Priority check or look in dictionary
+            // We can iterate the _itemDict keys matching the ID
+            foreach(var key in _itemDict.Keys)
+            {
+                if (key.Id == id) return key.Type;
+            }
+            return null;
         }
 
         private void InitializeIndex()
@@ -123,21 +127,19 @@ namespace Shittim.Commands
                 _itemDict = new Dictionary<ItemKey, object>();
 
                 var currencyExcel = connection.ExcelTableService.GetTable<CurrencyExcelT>();
-                foreach (var x in currencyExcel)
-                    _itemDict[new ItemKey(ParcelType.Currency, x.ID)] = x;
+                foreach (var x in currencyExcel) _itemDict[new ItemKey(ParcelType.Currency, x.ID)] = x;
 
                 var itemExcel = connection.ExcelTableService.GetTable<ItemExcelT>();
-                foreach (var x in itemExcel)
-                    _itemDict[new ItemKey(ParcelType.Item, x.Id)] = x;
+                foreach (var x in itemExcel) _itemDict[new ItemKey(ParcelType.Item, x.Id)] = x;
 
                 var equipmentExcel = connection.ExcelTableService.GetTable<EquipmentExcelT>();
-                foreach (var x in equipmentExcel)
-                    _itemDict[new ItemKey(ParcelType.Equipment, x.Id)] = x;
-                _initialized = true;
-
+                foreach (var x in equipmentExcel) _itemDict[new ItemKey(ParcelType.Equipment, x.Id)] = x;
+                
                 var furnitureExcel = connection.ExcelTableService.GetTable<FurnitureExcelT>();
-                foreach (var x in furnitureExcel)
-                    _itemDict[new ItemKey(ParcelType.Furniture, x.Id)] = x;
+                foreach (var x in furnitureExcel) _itemDict[new ItemKey(ParcelType.Furniture, x.Id)] = x;
+                
+                var charExcel = connection.ExcelTableService.GetTable<CharacterExcelT>();
+                foreach (var x in charExcel) _itemDict[new ItemKey(ParcelType.Character, x.Id)] = x;
 
                 _initialized = true;
             }

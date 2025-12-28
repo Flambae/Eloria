@@ -9,6 +9,7 @@ using Shittim.Commands;
 using Schale.Data;
 using Serilog;
 using BlueArchiveAPI.Services;
+using Shittim_Server.Services;
 
 namespace Shittim.Services.IrcClient
 {
@@ -22,16 +23,19 @@ namespace Shittim.Services.IrcClient
         private readonly IDbContextFactory<SchaleDataContext> contextFactory;
         private readonly IMapper mapper;
         private readonly ExcelTableService excelTableService;
+        private readonly MailManager mailManager;
 
         public IrcServer(
             IPAddress host, int port,
             IDbContextFactory<SchaleDataContext> _contextFactory,
             IMapper _mapper,
-            ExcelTableService _excelTableService)
+            ExcelTableService _excelTableService,
+            MailManager _mailManager)
         {
             contextFactory = _contextFactory;
             mapper = _mapper;
             excelTableService = _excelTableService;
+            mailManager = _mailManager;
 
             listener = new TcpListener(host, port);
         }
@@ -123,9 +127,10 @@ namespace Shittim.Services.IrcClient
                 mapper,
                 excelTableService,
                 writer,
-                null,
+                null, 
                 user_serverId,
-                "#schale"
+                "#schale",
+                mailManager
             );
 
             Log.Debug($"{args[0].Split("_")[0]} {user_serverId} logged in");

@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Schale.Data;
 using BlueArchiveAPI.Services;
 
+using Shittim_Server.Services;
+
 namespace Shittim.Services.WebClient
 {
     public class WebService
@@ -13,16 +15,19 @@ namespace Shittim.Services.WebClient
         private readonly IDbContextFactory<SchaleDataContext> contextFactory;
         private readonly IMapper mapper;
         private readonly ExcelTableService excelTableService;
+        private readonly MailManager mailManager;
 
         public WebService(
             IDbContextFactory<SchaleDataContext> _contextFactory,
             IMapper _mapper,
-            ExcelTableService _excelTableService
+            ExcelTableService _excelTableService,
+            MailManager _mailManager
         )
         {
             contextFactory = _contextFactory;
             mapper = _mapper;
             excelTableService = _excelTableService;
+            mailManager = _mailManager;
         }
 
         public WebClientConnection GetClient(long uid, StreamWriter writer)
@@ -38,7 +43,8 @@ namespace Shittim.Services.WebClient
                 mapper,
                 excelTableService,
                 writer,
-                uid
+                uid,
+                mailManager
             );
 
             clients.TryAdd(uid, client);
@@ -55,7 +61,8 @@ namespace Shittim.Services.WebClient
                 mapper,
                 excelTableService,
                 new StreamWriter(new MemoryStream()),
-                uid
+                uid,
+                mailManager
             );
 
             clients.TryAdd(uid, client);

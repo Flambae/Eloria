@@ -5,6 +5,8 @@ using AutoMapper;
 using BlueArchiveAPI.Services;
 using Shittim.Services.IrcClient;
 
+using Shittim_Server.Services;
+
 namespace Shittim.Services.WebClient
 {
     public class WebClientConnection : IClientConnection
@@ -14,6 +16,8 @@ namespace Shittim.Services.WebClient
         public ExcelTableService ExcelTableService { get; set; }
         public long AccountServerId { get; set; }
         
+        public MailManager MailManager { get; set; }
+
         public StreamWriter StreamWriter { get; set; }
 
         public WebClientConnection(
@@ -21,7 +25,8 @@ namespace Shittim.Services.WebClient
             IMapper _mapper,
             ExcelTableService _excel,
             StreamWriter _writer,
-            long _accountServerId
+            long _accountServerId,
+            MailManager _mailManager
         )
         {
             Context = _ctx;
@@ -29,6 +34,7 @@ namespace Shittim.Services.WebClient
             ExcelTableService = _excel;
             StreamWriter = _writer;
             AccountServerId = _accountServerId;
+            MailManager = _mailManager;
         }
 
         public Task SendChatMessage(string text)

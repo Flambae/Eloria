@@ -197,12 +197,14 @@ namespace Shittim.CLI
 
                     if (console)
                     {
+                        var mailManager = scope.ServiceProvider.GetRequiredService<MailManager>();
                         var consoleConnection = new ConsoleClientConnection(
                             contextFactory,
                             mapper,
                             excelService,
                             new StreamWriter(Console.OpenStandardOutput()),
-                            id ?? 2
+                            id ?? 2,
+                            mailManager
                         );
                         _ = Task.Run(() => ConsoleCommand.ConsoleCommandListener(consoleConnection));
                     }
