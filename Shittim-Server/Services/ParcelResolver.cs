@@ -115,7 +115,9 @@ public class ParcelResolver
 
         if (isAccountLevelUp && type == CurrencyTypes.ActionPoint &&
             amount > accountCurrencyDB.CurrencyDict[CurrencyTypes.ActionPoint])
-            return;
+            {
+                // Removed 'return;' statement as per instruction.
+            }
 
         if (IsConsume && type == CurrencyTypes.Gem)
             accountCurrencyDB.SubtractGem(amount, dateTime);
@@ -146,7 +148,6 @@ public class ParcelResolver
             };
             Context.Equipments.Add(equipment);
             _newEquipments.Add(equipment);
-            return;
         }
         else if (equipment != null)
         {
@@ -182,7 +183,6 @@ public class ParcelResolver
             };
             Context.Items.Add(item);
             _newItems.Add(item);
-            return;
         }
         else if (item != null)
         {
@@ -300,7 +300,7 @@ public class ParcelResolver
             };
             Context.Furnitures.Add(furniture);
             _newFurnitures.Add(furniture);
-            return;
+
         }
         else if (furniture != null)
         {

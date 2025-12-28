@@ -53,7 +53,18 @@ public class MailHandler : ProtocolHandlerBase
     {
         var account = await _sessionService.GetAuthenticatedUser(db, request.SessionKey);
 
-        var mails = db.GetAccountMails(account.ServerId).ToList();
+        var query = db.GetAccountMails(account.ServerId);
+
+        if (request.IsReadMail)
+        {
+            query = query.Where(x => x.ReceiptDate != null);
+        }
+        else
+        {
+            query = query.Where(x => x.ReceiptDate == null);
+        }
+
+        var mails = query.ToList();
 
         response.MailDBs = _mapper.Map<List<MailDB>>(mails);
         response.Count = mails.Count;
@@ -73,7 +84,7 @@ public class MailHandler : ProtocolHandlerBase
         var account = await _sessionService.GetAuthenticatedUser(db, request.SessionKey);
 
         var mailsToReceive = db.GetAccountMails(account.ServerId)
-            .Where(m => request.MailServerIds.Contains(m.ServerId))
+            .Where(m => request.MailServerIds.Contains(m.ServerId) && m.ReceiptDate == null)
             .ToList();
 
         var parcelResults = new List<ParcelResult>();
@@ -86,7 +97,8 @@ public class MailHandler : ProtocolHandlerBase
                     parcelResults.Add(new ParcelResult(parcel.Key.Type, parcel.Key.Id, parcel.Amount));
                 }
             }
-            db.Mails.Remove(mail);
+            // Mark as received instead of removing
+            mail.ReceiptDate = DateTime.Now;
         }
 
         await db.SaveChangesAsync();
