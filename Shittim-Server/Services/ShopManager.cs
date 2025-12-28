@@ -48,15 +48,24 @@ public class ShopManager
     {
         long gachaAmount = 10;
         List<ItemDB> consumedItems = [];
+        List<ParcelResult> parcelConsume = [];
 
         if (req.Cost == null)
         {
-             var currentCurrencyEntity = context.GetAccountCurrencies(account.ServerId).FirstOrDefault();
-             var currentCurrencyDB = currentCurrencyEntity?.ToMap(_mapper) ?? new AccountCurrencyDB();
-             return (currentCurrencyDB, consumedItems, gachaAmount);
+             var goods = _goodsExcels.FirstOrDefault(x => x.Id == req.GoodsId);
+             if (goods != null)
+             {
+                 for (int i = 0; i < goods.ConsumeParcelType.Count; i++)
+                 {
+                     parcelConsume.Add(new ParcelResult(goods.ConsumeParcelType[i], goods.ConsumeParcelId[i], goods.ConsumeParcelAmount[i]));
+                 }
+             }
+        }
+        else
+        {
+            parcelConsume = ParcelResult.ConvertParcelResult(req.Cost.ParcelInfos);
         }
 
-        var parcelConsume = ParcelResult.ConvertParcelResult(req.Cost.ParcelInfos);
         foreach (var parcel in parcelConsume)
         {
             gachaAmount = parcel.Type switch
@@ -66,6 +75,10 @@ public class ShopManager
                 _ => 10,
             };
         }
+        
+        // Ensure gachaAmount is at least 1, mainly for 1-pulls
+        if (gachaAmount <= 0) gachaAmount = 1;
+
         var parcelResolver = await _parcelHandler.BuildParcel(context, account, parcelConsume, isConsume: true);
         if (parcelResolver.ParcelResult.ItemDBs.Count > 0)
             consumedItems.AddRange(parcelResolver.ParcelResult.ItemDBs.Values);
@@ -104,18 +117,19 @@ public class ShopManager
 
         if (characterBanner.CategoryType != ShopCategoryType.NormalGacha)
         {
-            rateUpPickUp = _pickupDuplicateBonusExcels.GetPickupDuplicateBonusByShopId(req.ShopUniqueId);
-            rateUpChar = _characterExcels.GetCharacter(rateUpPickUp.PickupCharacterId);
-            var otherShopRecruitChars = _shopRecruitmentExcels
-                .GetAssignedCharacterIdShopRecruit().GetAssignedSaleShopRecruit()
-                .GetCategorizedShopRecruit(rateUpPickUp.ShopCategoryType).GetTimelinedShopRecruit(dateTime);
-            var characterIds = otherShopRecruitChars.SelectMany(x => x.InfoCharacterId);
-            foreach (long characterId in characterIds)
-            {
-                if (characterId == rateUpChar.Id) continue;
-                var character = _characterExcels.GetCharacter(characterId);
-                if (character != null) otherRateUpList.Add(character);
+            // Only try to get pickup bonus if it exists
+            try {
+                rateUpPickUp = _pickupDuplicateBonusExcels.GetPickupDuplicateBonusByShopId(req.ShopUniqueId);
+                // If the shop uses the simplified system without duplicate bonus tables, this might fail or return default
+                if (rateUpPickUp != null && rateUpPickUp.PickupCharacterId > 0)
+                {
+                    rateUpChar = _characterExcels.GetCharacter(rateUpPickUp.PickupCharacterId);
+                    
+                    // Logic for shared probability characters?
+                    // This logic seems specific to multi-pickup banners
+                }
             }
+            catch { /* Ignore if pickup bonus not found */ }
         }
 
         List<ShopCategoryType> allowedGachaTypes =
@@ -123,6 +137,11 @@ public class ShopManager
             ShopCategoryType.PickupGacha,
             ShopCategoryType.LimitedGacha
         ];
+        
+        // Determine 3-star guarantee
+        bool isGuaranteedSSR = characterBanner.CategoryType == ShopCategoryType.TicketGacha || 
+                               characterBanner.CategoryType == ShopCategoryType.GlobalSpecialGacha;
+
         const int guaranteedSRIndex = 9;
         List<GachaResult> gachaList = new((int)gachaAmount);
         List<ItemDBServer> itemList = [];
@@ -152,6 +171,16 @@ public class ShopManager
                     guaranteedUsed = true;
                     continue;
                 }
+            }
+            
+            // Force 3-star guarantee on last pull if applicable
+            bool isLastPull = i == gachaAmount - 1;
+            if (isLastPull && isGuaranteedSSR && !hasSSR)
+            {
+                Console.WriteLine($"[ShopManager] Triggering Guaranteed SSR for Ticket/Special Gacha on pull {i+1}");
+                await GachaService.AddGachaResult(context, account, _mapper, GachaService.GetRandomCharacterId(ssrCharacterList), gachaList, itemList);
+                hasSSR = true;
+                continue;
             }
 
             var randomNumber = Random.Shared.NextInt64(1000);
@@ -194,7 +223,7 @@ public class ShopManager
                 continue;
             }
 
-            if (randomNumber < rateUpSSRRate && !characterBanner.CategoryType.Equals(ShopCategoryType.NormalGacha))
+            if (randomNumber < rateUpSSRRate && !characterBanner.CategoryType.Equals(ShopCategoryType.NormalGacha) && rateUpChar.Id > 0)
             {
                 await GachaService.AddGachaResult(context, account, _mapper, rateUpChar, gachaList, itemList);
                 hasSSR = true;
